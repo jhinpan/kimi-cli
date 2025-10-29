@@ -1,23 +1,32 @@
 import json
 from collections.abc import Sequence
 from pathlib import Path
+from uuid import uuid4
 
 import aiofiles
 import aiofiles.os
 from kosong.base.message import Message
 
 from kimi_cli.soul.message import system
+from kimi_cli.soul.metadata_store import MetadataStore
 from kimi_cli.utils.logging import logger
 from kimi_cli.utils.path import next_available_rotation
 
 
 class Context:
-    def __init__(self, file_backend: Path):
+    def __init__(self, file_backend: Path, task_id: str | None = None):
         self._file_backend = file_backend
         self._history: list[Message] = []
         self._token_count: int = 0
         self._next_checkpoint_id: int = 0
         """The ID of the next checkpoint, starting from 0, incremented after each checkpoint."""
+        self.task_id = task_id
+        """Optional task ID for subagent tasks, used for tagging and metadata tracking."""
+
+        # Initialize metadata store with sidecar file
+        meta_path = file_backend.with_suffix(".meta.jsonl")
+        self.meta = MetadataStore(meta_path)
+        """Metadata store for tagging and KV-cache management."""
 
     async def restore(self) -> bool:
         logger.debug("Restoring context from file: {file_backend}", file_backend=self._file_backend)
@@ -131,8 +140,12 @@ class Context:
         self._history.extend(messages)
 
         async with aiofiles.open(self._file_backend, "a", encoding="utf-8") as f:
-            for message in messages:
-                await f.write(message.model_dump_json(exclude_none=True) + "\n")
+            for msg in messages:
+                # Serialize message and add message_id if not present
+                data = msg.model_dump(exclude_none=True)
+                if "message_id" not in data:
+                    data["message_id"] = str(uuid4())
+                await f.write(json.dumps(data) + "\n")
 
     async def update_token_count(self, token_count: int):
         logger.debug("Updating token count in context: {token_count}", token_count=token_count)
@@ -140,3 +153,49 @@ class Context:
 
         async with aiofiles.open(self._file_backend, "a", encoding="utf-8") as f:
             await f.write(json.dumps({"role": "_usage", "token_count": token_count}) + "\n")
+
+    async def get_recent_message_ids(self, n: int = 5, roles: set[str] | None = None) -> list[str]:
+        """
+        Get message IDs from the most recent messages.
+
+        Args:
+            n: Number of recent messages to retrieve IDs from
+            roles: Optional set of roles to filter by (e.g., {"assistant", "tool"})
+
+        Returns:
+            List of message IDs from most recent to oldest
+        """
+        message_ids = []
+
+        # Read from file backend to get message_ids
+        if not self._file_backend.exists():
+            return []
+
+        async with aiofiles.open(self._file_backend, "r", encoding="utf-8") as f:
+            lines = await f.readlines()
+
+        # Process lines in reverse order to get recent messages first
+        for line in reversed(lines):
+            if len(message_ids) >= n:
+                break
+
+            if not line.strip():
+                continue
+
+            try:
+                line_json = json.loads(line)
+                # Skip special roles
+                if line_json.get("role") in ("_usage", "_checkpoint"):
+                    continue
+
+                # Filter by role if specified
+                if roles and line_json.get("role") not in roles:
+                    continue
+
+                # Get message_id if present
+                if "message_id" in line_json:
+                    message_ids.append(line_json["message_id"])
+            except (json.JSONDecodeError, KeyError):
+                continue
+
+        return message_ids

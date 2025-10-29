@@ -1,4 +1,5 @@
 import asyncio
+import secrets
 from pathlib import Path
 from typing import override
 
@@ -10,6 +11,7 @@ from kimi_cli.soul import MaxStepsReached, get_wire_or_none, run_soul
 from kimi_cli.soul.agent import Agent, load_agent
 from kimi_cli.soul.context import Context
 from kimi_cli.soul.kimisoul import KimiSoul
+from kimi_cli.soul.message import system
 from kimi_cli.soul.runtime import Runtime
 from kimi_cli.tools.utils import load_desc
 from kimi_cli.utils.message import message_extract_text
@@ -43,6 +45,7 @@ class Params(BaseModel):
             "because the subagent cannot see anything in your context."
         )
     )
+    task_id: str | None = Field(default=None, description="Optional stable task ID (e.g., task_ab12cd34)")
 
 
 class Task(CallableTool2[Params]):
@@ -98,6 +101,10 @@ class Task(CallableTool2[Params]):
             await self._load_task
             self._load_task = None
 
+        # Auto-generate task_id if not provided
+        if params.task_id is None:
+            params.task_id = f"task_{secrets.token_hex(4)}"
+
         if params.subagent_name not in self._subagents:
             return ToolError(
                 message=f"Subagent not found: {params.subagent_name}",
@@ -105,7 +112,7 @@ class Task(CallableTool2[Params]):
             )
         agent = self._subagents[params.subagent_name]
         try:
-            result = await self._run_subagent(agent, params.prompt)
+            result = await self._run_subagent(agent, params.prompt, params.task_id)
             return result
         except Exception as e:
             return ToolError(
@@ -113,7 +120,7 @@ class Task(CallableTool2[Params]):
                 brief="Failed to run subagent",
             )
 
-    async def _run_subagent(self, agent: Agent, prompt: str) -> ToolReturnType:
+    async def _run_subagent(self, agent: Agent, prompt: str, task_id: str) -> ToolReturnType:
         """Run subagent with optional continuation for task summary."""
         super_wire = get_wire_or_none()
         assert super_wire is not None
@@ -129,7 +136,7 @@ class Task(CallableTool2[Params]):
                 _super_wire_send(msg)
 
         subagent_history_file = await self._get_subagent_history_file()
-        context = Context(file_backend=subagent_history_file)
+        context = Context(file_backend=subagent_history_file, task_id=task_id)
         soul = KimiSoul(agent, runtime=self._runtime, context=context)
 
         try:
@@ -162,4 +169,6 @@ class Task(CallableTool2[Params]):
                 return ToolError(message=_error_msg, brief="Failed to run subagent")
             final_response = message_extract_text(context.history[-1])
 
-        return ToolOk(output=final_response)
+        # Wrap final response with task_outcome metadata for future KV-cache tagging
+        output_with_metadata = f'<task_outcome task_id="{task_id}">\n{final_response}\n</task_outcome>'
+        return ToolOk(output=output_with_metadata)

@@ -96,6 +96,7 @@ Test agents content
 """,
                 [
                     "Think",
+                    "TagContext",
                     "Bash",
                     "ReadFile",
                     "Glob",

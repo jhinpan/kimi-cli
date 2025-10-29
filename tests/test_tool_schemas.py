@@ -34,6 +34,11 @@ def test_task_params_schema(task_tool: Task):
                     "description": "The task for the subagent to perform. You must provide a detailed prompt with all necessary background information because the subagent cannot see anything in your context.",
                     "type": "string",
                 },
+                "task_id": {
+                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                    "default": None,
+                    "description": "Optional stable task ID (e.g., task_ab12cd34)",
+                },
             },
             "required": ["description", "subagent_name", "prompt"],
             "type": "object",
@@ -91,6 +96,21 @@ def test_set_todo_list_params_schema(set_todo_list_tool: SetTodoList):
                             "description": "The status of the todo",
                             "enum": ["Pending", "In Progress", "Done"],
                             "type": "string",
+                        },
+                        "id": {
+                            "anyOf": [{"type": "string"}, {"type": "null"}],
+                            "default": None,
+                            "description": "Stable todo id (e.g., todo_ab12cd34)",
+                        },
+                        "tags": {
+                            "description": "Free-form tags for categorization",
+                            "items": {"type": "string"},
+                            "type": "array",
+                        },
+                        "related_task_ids": {
+                            "description": "Linked task IDs",
+                            "items": {"type": "string"},
+                            "type": "array",
                         },
                     },
                     "required": ["title", "status"],

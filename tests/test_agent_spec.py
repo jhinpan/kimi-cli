@@ -82,8 +82,7 @@ agent:
             [
                 "kimi_cli.tools.task:Task",
                 "kimi_cli.tools.think:Think",
-                "kimi_cli.tools.todo:SetTodoList",
-                "kimi_cli.tools.bash:Bash",
+                "kimi_cli.tools.todo:SetTodoList", "kimi_cli.tools.tag_context:TagContext", "kimi_cli.tools.bash:Bash",
                 "kimi_cli.tools.file:ReadFile",
                 "kimi_cli.tools.file:Glob",
                 "kimi_cli.tools.file:Grep",

@@ -136,6 +136,11 @@ Examples:
                             "description": "The task for the subagent to perform. You must provide a detailed prompt with all necessary background information because the subagent cannot see anything in your context.",
                             "type": "string",
                         },
+                        "task_id": {
+                            "anyOf": [{"type": "string"}, {"type": "null"}],
+                            "default": None,
+                            "description": "Optional stable task ID (e.g., task_ab12cd34)",
+                        },
                     },
                     "required": ["description", "subagent_name", "prompt"],
                     "type": "object",
@@ -188,6 +193,21 @@ However, do not get stuck in a rut. Be flexible. Sometimes, you may try to use t
                                     "enum": ["Pending", "In Progress", "Done"],
                                     "type": "string",
                                 },
+                                "id": {
+                                    "anyOf": [{"type": "string"}, {"type": "null"}],
+                                    "default": None,
+                                    "description": "Stable todo id (e.g., todo_ab12cd34)",
+                                },
+                                "tags": {
+                                    "description": "Free-form tags for categorization",
+                                    "items": {"type": "string"},
+                                    "type": "array",
+                                },
+                                "related_task_ids": {
+                                    "description": "Linked task IDs",
+                                    "items": {"type": "string"},
+                                    "type": "array",
+                                },
                             },
                             "required": ["title", "status"],
                             "type": "object",
@@ -201,6 +221,101 @@ However, do not get stuck in a rut. Be flexible. Sometimes, you may try to use t
                         }
                     },
                     "required": ["todos"],
+                    "type": "object",
+                },
+            ),
+            Tool(
+                name="TagContext",
+                description="""\
+Tag messages for retention during context compaction.
+
+This tool marks specific messages as important for retention when context compaction occurs.
+It supports KV-cache-native context management by allowing you to specify which messages
+should be preserved across compaction cycles.
+
+## When to Use
+
+- After completing a task that produced important results
+- When generating code, diffs, or other artifacts that should persist
+- For marking critical debugging information or command outputs
+- To ensure key findings from research or analysis are retained
+
+## Retention Policies
+
+- **pin_outcome**: Keeps concise, factual results (diffs, final code, command outputs). Default and recommended.
+- **pin_process**: Keeps detailed process logs, reasoning traces. Use sparingly as it consumes more tokens.
+- **auto**: System automatically decides based on content type.
+
+## Importance Levels
+
+- **1-2**: Low priority, may be dropped first during aggressive compaction
+- **3**: Normal priority (default)
+- **4-5**: High priority, strongly retained
+
+## TTL (Time-to-Live)
+
+Messages are retained for the specified number of agent steps before the tag expires.
+Default is 100 steps, which is suitable for most use cases.
+
+## Examples
+
+Tag recent task results for outcome retention:
+```
+TagContext(task_id="task_abc123", policy="pin_outcome", importance=4)
+```
+
+Tag specific messages with custom TTL:
+```
+TagContext(
+    task_id="task_xyz789",
+    message_ids=["msg-uuid-1", "msg-uuid-2"],
+    policy="pin_process",
+    ttl_steps=50,
+    importance=3,
+    notes="Debug trace for authentication bug"
+)
+```
+""",
+                parameters={
+                    "properties": {
+                        "task_id": {
+                            "description": "The task ID these messages belong to",
+                            "type": "string",
+                        },
+                        "policy": {
+                            "default": "pin_outcome",
+                            "description": "Retention policy: 'pin_outcome' keeps concise results, 'pin_process' keeps detailed process logs, 'auto' decides automatically",
+                            "enum": ["pin_outcome", "pin_process", "auto"],
+                            "type": "string",
+                        },
+                        "message_ids": {
+                            "anyOf": [
+                                {"items": {"type": "string"}, "type": "array"},
+                                {"type": "null"},
+                            ],
+                            "default": None,
+                            "description": "List of message IDs to tag. If None, will infer from recent assistant and tool messages related to this task.",
+                        },
+                        "ttl_steps": {
+                            "default": 100,
+                            "description": "Time-to-live in agent steps before this tag expires",
+                            "minimum": 1,
+                            "type": "integer",
+                        },
+                        "importance": {
+                            "default": 3,
+                            "description": "Priority level (1-5, where 5 is most important)",
+                            "maximum": 5,
+                            "minimum": 1,
+                            "type": "integer",
+                        },
+                        "notes": {
+                            "anyOf": [{"type": "string"}, {"type": "null"}],
+                            "default": None,
+                            "description": "Optional human-readable notes about this tag",
+                        },
+                    },
+                    "required": ["task_id"],
                     "type": "object",
                 },
             ),

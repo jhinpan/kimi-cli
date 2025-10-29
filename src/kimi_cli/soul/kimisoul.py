@@ -22,6 +22,7 @@ from kimi_cli.soul.compaction import SimpleCompaction
 from kimi_cli.soul.context import Context
 from kimi_cli.soul.message import system, tool_result_to_messages
 from kimi_cli.soul.runtime import Runtime
+from kimi_cli.soul.toolset import current_context
 from kimi_cli.tools.dmail import NAME as SendDMail_NAME
 from kimi_cli.tools.utils import ToolRejectedError
 from kimi_cli.utils.logging import logger
@@ -98,10 +99,15 @@ class KimiSoul(Soul):
         if self._runtime.llm is None:
             raise LLMNotSet()
 
-        await self._checkpoint()  # this creates the checkpoint 0 on first run
-        await self._context.append_message(Message(role="user", content=user_input))
-        logger.debug("Appended user message to context")
-        await self._agent_loop()
+        # Set current context for tools to access
+        token = current_context.set(self._context)
+        try:
+            await self._checkpoint()  # this creates the checkpoint 0 on first run
+            await self._context.append_message(Message(role="user", content=user_input))
+            logger.debug("Appended user message to context")
+            await self._agent_loop()
+        finally:
+            current_context.reset(token)
 
     async def _agent_loop(self):
         """The main agent loop for one run."""
