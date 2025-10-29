@@ -23,6 +23,7 @@ dependencies = [
     "fastmcp==2.12.5",
     "pydantic==2.12.3",
     "httpx[socks]==0.28.1",
+    "python-dotenv>=1.0.0",
 ]
 
 [dependency-groups]

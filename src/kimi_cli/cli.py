@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Literal, get_args
 
 import click
+from dotenv import load_dotenv
 
 from kimi_cli import KimiCLI
 from kimi_cli.constant import VERSION
@@ -156,6 +157,9 @@ def kimi(
     yolo: bool,
 ):
     """Kimi, your next CLI agent."""
+
+    # Load environment variables from .env file
+    load_dotenv(override=False)
 
     def _noop_echo(*args: Any, **kwargs: Any):
         pass
