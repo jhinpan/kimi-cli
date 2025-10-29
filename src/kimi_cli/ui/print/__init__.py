@@ -8,11 +8,12 @@ from typing import Literal
 import aiofiles
 from kosong.base.message import Message
 from kosong.chat_provider import ChatProviderError
+from rich import print
 
 from kimi_cli.soul import LLMNotSet, MaxStepsReached, RunCancelled, Soul, run_soul
-from kimi_cli.ui.signals import install_sigint_handler
 from kimi_cli.utils.logging import logger
 from kimi_cli.utils.message import message_extract_text
+from kimi_cli.utils.signals import install_sigint_handler
 from kimi_cli.wire import WireUISide
 from kimi_cli.wire.message import StepInterrupted
 
